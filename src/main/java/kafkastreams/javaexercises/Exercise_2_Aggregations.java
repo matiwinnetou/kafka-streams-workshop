@@ -4,16 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import kafkastreams.serdes.JsonNodeSerde;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.streams.kstream.Consumed;
-import org.apache.kafka.streams.kstream.Materialized;
-import org.apache.kafka.streams.kstream.Produced;
-import org.apache.kafka.streams.kstream.Serialized;
-import org.apache.kafka.streams.kstream.TimeWindows;
+import org.apache.kafka.streams.kstream.*;
 
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 public class Exercise_2_Aggregations {
 
@@ -27,7 +21,11 @@ public class Exercise_2_Aggregations {
      * each color *key*. Write the result to the topic 'color-counts'.
      */
     public void countColorKeyOccurrences(StreamsBuilder builder) {
+        KTable<String, Long> colorCounts = builder.stream("colors", Consumed.with(strings, strings))
+                .groupBy((key, value) -> key, Serialized.with(strings, strings))
+                .count(Materialized.as("color-counts"));
 
+        colorCounts.toStream().to("color-counts", Produced.with(strings, longs));
     }
 
     /**
@@ -35,7 +33,11 @@ public class Exercise_2_Aggregations {
      * each color *value*. Write the result to the topic 'color-counts'.
      */
     public void countColorValueOccurrences(StreamsBuilder builder) {
+        KTable<String, Long> colorCounts = builder.stream("colors", Consumed.with(strings, strings))
+                .groupBy((key, value) -> value, Serialized.with(strings, strings))
+                .count(Materialized.as("color-counts"));
 
+        colorCounts.toStream().to("color-counts", Produced.with(strings, longs));
     }
 
     /**
@@ -44,7 +46,18 @@ public class Exercise_2_Aggregations {
      * 'word-counts'.
      */
     public void countWordOccurrences(StreamsBuilder builder) {
+        KStream<String, String> hamlet = builder.stream("hamlet", Consumed.with(strings, strings));
 
+        KStream<String, String> stringStringKStream = hamlet
+                .flatMapValues(words -> () -> Arrays.stream(words.split(" "))
+                        .iterator());
+
+        KTable<String, Long> count = stringStringKStream
+                .mapValues(val -> val.toLowerCase())
+                .groupBy((key, word) -> word, Serialized.with(strings, strings))
+                .count();
+
+        count.toStream().to("word-counts", Produced.with(strings, longs));
     }
 
     /**
@@ -53,7 +66,11 @@ public class Exercise_2_Aggregations {
      * 'clicks-per-site'.
      */
     public void clicksPerSite(StreamsBuilder builder) {
+        KStream<String, JsonNode> stream = builder.stream("click-events", Consumed.with(strings, json));
 
+        KTable<String, Long> provider = stream.groupBy((key, value) -> value.get("provider").get("@id").asText(), Serialized.with(strings, json)).count();
+
+        provider.toStream().to("clicks-per-site", Produced.with(strings, longs));
     }
 
     /**
@@ -63,7 +80,9 @@ public class Exercise_2_Aggregations {
      * Hint: Use method 'reduce' on the grouped stream.
      */
     public void totalPricePerSite(StreamsBuilder builder) {
-
+//        KTable<Object, Long> prices = builder.stream("prices")
+//                .groupBy((key, value) -> key)
+//                .reduce()
     }
 
     /**
